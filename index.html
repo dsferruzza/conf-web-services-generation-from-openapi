@@ -32,6 +32,259 @@
 # Génération automatique de services web à partir d'un modèle OpenAPI
 ## David Sferruzza
 ### 2018-05-18
+
+---
+
+# À propos de moi
+
+- [@d_sferruzza](https://twitter.com/d_sferruzza)
+- [github.com/dsferruzza](https://github.com/dsferruzza)
+- Travaille chez [Startup Palace](https://www.startup-palace.com)
+- Doctorant en génie logiciel à l'*Université de Nantes*
+
+![](img/sp.gif) <!-- .element: class="stretch" -->
+
+---
+
+# Motivations
+
+- j'ai appris à programmer avec PHP **pour le fun** quand j'étais au collège
+- j'ai fait une école d'ingénieur généraliste, mais je suis **autodidacte** en logiciel
+- j'ai appris pas mal d'éléments théoriques **sur le tard**
+
+---
+
+# Motivations
+
+Donc, aujourd'hui on va voir :
+
+- des concepts intéressants que j'ai découverts
+- un prototype que j'ai développé pendant ma thèse
+
+**Objectif : vous faire prendre du recul pour que vous deveniez de meilleurs développeurs (PHP ou autre)**
+
+---
+
+## Avant d'attaquer le vif du sujet, petite histoire de génie logiciel...
+
+![](img/dev.gif)
+
+---
+
+# Objectif
+
+On veut contrôler l'ouverture et la fermeture d'une porte avec un **Arduino**.
+
+![](img/door.gif) <!-- .element: class="stretch" -->
+
+---
+
+# Matériel
+
+Les éléments suivants sont branchés sur un Arduino.
+
+Entrées :
+
+- capteur porte en position **ouverte**
+- capteur porte en position **fermée**
+- bouton pour **ouvrir**
+- bouton pour **fermer**
+
+Sorties :
+
+- actionneur pour **ouvrir**
+- actionneur pour **fermer**
+
+---
+
+# Quelques contraintes
+
+- l'appui sur un des **boutons** doit ouvrir/fermer la porte complètement
+- il faut **arrêter** d'ouvrir la porte lorsqu'elle est ouverte (et pareil pour la fermeture)
+- si on demande l'ouverture alors que la porte est en train de se fermer, il faut la **rouvrir** tout de suite
+
+---
+
+# Exemple de code en C
+
+```c
+int BUTTON_OPEN = 8;
+int BUTTON_CLOSE = 9;
+int OPEN = 10;
+int CLOSE = 11;
+int IS_OPENED = 12;
+int IS_CLOSED = 13;
+
+void setup() {
+  pinMode(BUTTON_OPEN, INPUT);
+  pinMode(BUTTON_CLOSE, INPUT);
+  pinMode(OPEN, OUTPUT);
+  pinMode(CLOSE, OUTPUT);
+  pinMode(IS_OPENED, INPUT);
+  pinMode(IS_CLOSED, INPUT);
+}
+```
+
+---
+
+# Exemple de code en C
+
+```c
+int state = 0; // 0=idle, 1=opening, 2=closing
+
+void loop() {
+  if (state == 0) {
+    if (digitalRead(IS_CLOSED) == HIGH
+      && digitalRead(BUTTON_OPEN) == HIGH) state = 1;
+    else if (digitalRead(IS_OPENED) == HIGH
+      && digitalRead(BUTTON_CLOSE) == HIGH) state = 2;
+  } else if (state == 1) {
+    if (digitalRead(IS_OPENED) == LOW) digitalWrite(OPEN, HIGH);
+    else {
+      digitalWrite(OPEN, LOW);
+      state = 0;
+    }
+  } else if (state == 2) {
+    if (digitalRead(IS_CLOSED) == LOW) {
+      if (digitalRead(BUTTON_OPEN) == HIGH) state = 1;
+      else digitalWrite(CLOSE, HIGH);
+    } else {
+      digitalWrite(CLOSE, LOW);
+      state = 0;
+    }
+  }
+  delay(100); // YOLO
+}
+```
+<!-- .element: class="smallcode" -->
+
+---
+
+# Analyse
+
+- (oui, le code est naïf)
+- pas facile à maintenir
+- il y a des bugs
+
+---
+
+# Amélioration possible
+
+Mieux gérer les appuis sur les boutons : obliger un appui pendant 500 ms pour prendre en compte la commande.
+
+→ pas très facile à implémenter en l'état
+
+---
+
+# Analyse
+
+- constat : les specifications sont simples et haut-niveau, mais le code est complexe
+- on produit un résultat cool mais ce n'est pas ce qu'on a envie d'écrire (et de maintenir)
+
+---
+
+# Abstraction
+
+En fait, notre spécification peut se modéliser avec un automate fini.
+
+![](img/door-fsm.png) <!-- .element: class="stretch" -->
+
+---
+
+# Abstraction
+
+On a défini une nouvelle manière d'exprimer le programme, basée sur des invariants :
+
+- des **états** (dont un qui est l'état de départ)
+- des **transitions** entre certains états
+
+_C'est moins flexible mais on peut exprimer tout ce qu'on a besoin d'exprimer dans cet exemple._
+
+---
+
+# Domain Specific Language
+
+Pour écrire une implémentation réelle, on peut utiliser un **DSL**.
+
+> Langage de programmation dont les spécifications sont conçues pour répondre aux contraintes d'un domaine d'application précis.
+
+---
+
+# Domain Specific Language
+
+Autour de ce langage, on peut avoir des outils qui apportent du support :
+
+- **vérification :** nos programmes sont cohérents et respectent les contraintes
+- **génération :** on produit d'autres artefacts
+
+---
+
+# Langages de programmation
+
+Les DSL sont moins complexes que les langages de programmation généraliste : la **sémantique** des programmes est plus accessible.
+
+![](img/gpl-vs-dsl.png) <!-- .element: class="stretch" -->
+
+<small>(Markus Voelter, DSL Engineering)</small>
+
+---
+
+![](img/story.gif)
+
+---
+
+## Revenons au sujet
+
+# Génération automatique de services web à partir d'un modèle OpenAPI
+
+---
+
+# Contexte
+
+On veut réaliser des **services web** (= API HTTP) pour supporter un produit numérique.
+
+- prototypage rapide (≈ _prod honteuse_)
+- spécifications instables
+- productivité (MVP ⇒ coûts faibles/maîtrisés)
+- éviter les bugs
+
+---
+
+# PHP
+
+On sait faire des services web en PHP, en utilisant ou pas un des nombreux frameworks.
+
+Mais :
+
+- PHP est généraliste (beaucoup de flexibilité)
+- PHP est très dynamique (difficile à analyser)
+
+---
+
+# Réflexion
+
+**Est-ce qu'on ne pourrait pas faire un DSL pour écrire des services web ?**
+
+![](img/thinking.gif) <!-- .element: class="stretch" -->
+
+---
+
+# The OpenAPI Specification
+
+![](img/openapi.png) <!-- .element: class="stretch" -->
+
+> Définit un standard pour décrire des API HTTP d'une manière qui est agnostique aux langages de programmation utilisés pour leur implementation.
+
+<https://github.com/OAI/OpenAPI-Specification>
+
+---
+
+# Modèle OpenAPI
+
+Un modèle OpenAPI est un document JSON ou YAML qui respecte la spécification.
+
+- OpenAPI décrit un langage adapté à un domaine (ici, les API HTTP)
+- de nombreux outils offrent du support à partir de modèles OpenAPI
           </textarea>
         </section>
       </div>
