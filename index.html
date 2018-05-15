@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Génération automatique de services web à partir d'un modèle OpenAPI</title>
+    <meta name="description" content="">
+    <meta name="author" content="David Sferruzza">
+
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match(/print-pdf/gi) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    </script>
+
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown data-separator="^\r?\n---\r?\n$">
+          <textarea data-template>
+# Génération automatique de services web à partir d'un modèle OpenAPI
+## David Sferruzza
+### 2018-05-18
+          </textarea>
+        </section>
+      </div>
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
+    <script src="plugin/markdown/marked.js"></script>
+
+    <script>
+      function paragraphRenderer(text) {
+        var singleImage = text.match(/^(<img src=".+" alt=".*">)(\s*<!--.+-->)?$/);
+        if (singleImage !== null) {
+          var stretchComment = (typeof singleImage[2] === 'string') ? singleImage[2].match(/^\s*<!--\s*\.element:\s*(.*?)\s*(class\s*=\s*"stretch")\s*(.*?)\s*-->$/) : null;
+          if (stretchComment !== null && typeof stretchComment[2] === 'string') {
+            var comment = '<!-- .element: ' + ((typeof stretchComment[1] === 'string') ? stretchComment[1] : '') + ' ' + ((typeof stretchComment[3] === 'string') ? stretchComment[3] : '') + ' -->';
+            return '<figure class="stretch">' + singleImage[1] + comment + '</figure>';
+          }
+          else {
+            var comment = (typeof singleImage[2] === 'string') ? singleImage[2] : '';
+            return '<figure>' + singleImage[1] + comment + '</figure>';
+          }
+        }
+        else {
+          return '<p>' + text + '</p>\n';
+        }
+      }
+      var patchedRenderer = new marked.Renderer();
+      patchedRenderer.paragraph = paragraphRenderer;
+
+      Reveal.initialize({
+        controls: false,
+        slideNumber: true,
+        history: true,
+        transition: 'none',
+        dependencies: [
+          // { src: 'plugin/markdown/marked.js' }, // <-- useless because included before
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/notes/notes.js', async: true },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'plugin/zoom-js/zoom.js', async: true },
+        ],
+        markdown: {
+          renderer: patchedRenderer,
+        },
+      });
+    </script>
+  </body>
+</html>
