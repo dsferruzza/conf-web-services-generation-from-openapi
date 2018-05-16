@@ -245,8 +245,8 @@ On veut réaliser des **services web** (= API HTTP) pour supporter un produit nu
 
 - prototypage rapide (≈ _prod honteuse_)
 - spécifications instables
-- productivité (MVP ⇒ coûts faibles/maîtrisés)
 - éviter les bugs
+- productivité (MVP ⇒ coûts faibles/maîtrisés)
 
 ---
 
@@ -285,6 +285,266 @@ Un modèle OpenAPI est un document JSON ou YAML qui respecte la spécification.
 
 - OpenAPI décrit un langage adapté à un domaine (ici, les API HTTP)
 - de nombreux outils offrent du support à partir de modèles OpenAPI
+
+---
+
+# Swagger Editor
+
+![](img/swagger-editor.png) <!-- .element: class="stretch" -->
+
+---
+
+# Utiliser OpenAPI
+
+Il y a 2 méthodes principales :
+
+- par **raffinement** : modèle → implémentation
+  - exemple : [Swagger Code Generator](https://github.com/swagger-api/swagger-codegen/)
+  - limitation : difficile de garantir l'alignement modèle/implémentation
+- par **abstraction** : implémentation → modèle
+  - exemple : [PHPSwaggerGen](https://github.com/vanderlee/PHPSwaggerGen)
+  - limitation : approche _bottom-up_ uniquement
+
+Dans tous les cas, **OpenAPI ne décrit que l'_interface_ des services web !**
+
+---
+
+# Notre approche
+
+On propose une méthode :
+
+- baséé sur OpenAPI
+- par raffinement
+- qui garantit l'alignement modèle/implémentation
+- adapté à notre contexte
+
+![](img/lets-do-this.gif) <!-- .element: class="stretch" -->
+
+---
+
+# Le méta-modèle
+
+1. **Entités**<br>modèle de données
+2. **Composants**<br>unités de traitement paramétrables et composables
+3. **Services**<br>API HTTP publique
+
+---
+
+# Composants
+
+Il y a 2 types de composants :
+
+- **atomique**
+- **composite**
+
+Chaque composant peut avoir des **paramètres** qui sont accessibles par son implémentation ou ses enfants.
+
+---
+
+# Composant atomique
+
+- a des **préconditions** sur son contexte d'exécution
+- a des **effets** sur son contexte d'exécution
+- est implémenté grâce à un langage de programmation
+
+```yaml
+- name: GetPetById
+  pre:
+    - name: id
+      type: Integer
+  add:
+    - name: pet
+      type:
+        entity: Pet
+```
+
+---
+
+# Implémentation d'un composant atomatique
+
+```php
+<?php
+namespace App\Components;
+use App\SWSG\Component;
+use App\SWSG\Ctx;
+use App\SWSG\Params;
+use DB;
+
+class GetPetById implements Component
+{
+    public static function execute(Params $params, Ctx $ctx)
+    {
+        $pet = DB::table('pet')
+            ->where('id', $ctx->get('id'))
+            ->first();
+        $ctx->add('pet', $pet);
+        return $ctx;
+    }
+}
+
+```
+<!-- .element: class="smallcode" -->
+
+---
+
+# Composant composite
+
+- défini par une liste d'instances de composants
+- inférence de ses préconditions, effets et implémentation
+
+```yaml
+- name: FindPet
+  components:
+    - component: GetPetById
+    - component: RenderPet
+```
+
+---
+
+# Vérification
+
+Le méta-modèle est conçu pour permettre une vérification de **cohérence structurelle**.
+
+_Par exemple : vérifier que chaque composant de l'assemblage sera exécuté dans un contexte qui va satisfaire ses préconditions._
+
+- ça donne de la confiance dans le modèle (_at design-time_)
+- sans payer le prix des méthodes formelles
+
+---
+
+# Intégration à OpenAPI
+
+OpenAPI peut être étendu en ajoutant des propriétés préfixées par `x-` dans la plupart des objets.
+
+⇒ on **fusionne** notre méta-modèle dans OpenAPI
+
+---
+
+# Intégration à OpenAPI
+
+Principales parties manquantes dans OpenAPI :
+
+- définition des composants
+- instanciation d'un composant par service
+
+```yaml
+paths:
+  '/pets/{id}':
+    get:
+      ...
+      x-swsg-ci:
+        component: FindPet
+```
+
+---
+
+# Le prototype
+
+Safe Web Services Generator
+
+![](img/tool.png)
+
+- **entrée**:
+  - un modèle OpenAPI étendu
+  - des implémentations des composants atomiques
+- **sortie**: un ensemble de fichiers à placer dans une application Laravel
+- programme en ligne de commande, écrit en Scala
+
+---
+
+# Génération de code
+
+5 types de fichiers sont générés :
+
+- **classes statiques** (`app/SWSG/*`)
+- **composants atomiques** (`app/Components/*`)
+- **composants composites** (`app/Components/*`)
+- **fichier de routes** (`routes/generated.php`)
+- **_RouteServiceProvider_** (`app/Providers/GeneratedRouteServiceProvider.php`)
+
+---
+
+# Génération de code
+
+Les fichiers générés n'écrasent rien une application Laravel standard.
+
+Pour **activer** le code et les services générés, il faut modifier la config dans `config/app.php` :
+
+```diff
+- App\Providers\RouteServiceProvider::class,
++ App\Providers\GeneratedRouteServiceProvider::class
+```
+<!-- .element: class="smallcode" -->
+
+---
+
+# RouterServiceProvider
+
+```php
+<?php
+// This is a generated file, do not edit
+namespace App\Providers;
+use Illuminate\Support\Facades\Route;
+
+class GeneratedRouteServiceProvider extends RouteServiceProvider
+{
+    public function map()
+    {
+        $this->mapGeneratedRoutes();
+
+        parent::map();
+    }
+
+    protected function mapGeneratedRoutes()
+    {
+        Route::group([], function ($router) {
+            require base_path('routes/generated.php');
+        });
+    }
+}
+```
+<!-- .element: class="smallcode" -->
+
+---
+
+# Bilan
+
+On voulait une méthode :
+
+- baséé sur OpenAPI
+- par raffinement
+- qui garantit l'alignement modèle/implémentation
+- adapté à notre contexte :
+  - prototypage rapide (≈ _prod honteuse_)
+  - spécifications instables
+  - éviter les bugs
+  - productivité (MVP ⇒ coûts faibles/maîtrisés)
+
+Notre solution est loin d'être parfaite mais l'approche est intéressante.
+
+---
+
+# Flexibilité vs. support
+
+![](img/flexibilite-support1.svg)
+
+---
+
+# Flexibilité vs. support
+
+![](img/flexibilite-support2.svg)
+
+---
+
+# Questions ?
+
+![](img/question.gif) <!-- .element: class="stretch" -->
+
+Twitter: [@d_sferruzza](https://twitter.com/d_sferruzza)
+
+Slides sur GitHub :
+
+[dsferruzza/conf-web-services-generation-from-openapi](http://github.com/dsferruzza/conf-web-services-generation-from-openapi)
           </textarea>
         </section>
       </div>
